@@ -2,7 +2,8 @@
 package main
 
 import (
-	"math/rand/v2"
+	"crypto/rand"
+	"math/big"
 	"net"
 	"net/http"
 	"os"
@@ -23,8 +24,14 @@ type messageResponse struct {
 
 func messageHandler(w http.ResponseWriter, r *http.Request) {
 	log := logging.FromContext(r.Context())
+	idx, err := rand.Int(rand.Reader, big.NewInt(int64(len(messages))))
+	if err != nil {
+		log.Errorw("pick message", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
 	render.JSON(log, w, http.StatusOK, messageResponse{
-		Message: messages[rand.IntN(len(messages))], //nolint:gosec // non-cryptographic random selection
+		Message: messages[idx.Int64()],
 	})
 }
 
