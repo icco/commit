@@ -3,8 +3,10 @@ package main
 
 import (
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -26,8 +28,30 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// realIPFromTrustedProxy rewrites r.RemoteAddr from X-Forwarded-For only when
+// the direct peer is in private IP space — i.e. our reverse proxy on the
+// docker bridge. Avoids the spoofing footgun in chi's deprecated RealIP.
+func realIPFromTrustedProxy(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		peer := net.ParseIP(host)
+		if peer != nil && (peer.IsPrivate() || peer.IsLoopback()) {
+			if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+				if first := strings.TrimSpace(strings.SplitN(xff, ",", 2)[0]); first != "" {
+					r.RemoteAddr = first
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func newRouter(log *zap.Logger) http.Handler {
 	r := chi.NewRouter()
+	r.Use(realIPFromTrustedProxy)
 	r.Use(logging.Middleware(log))
 	r.Get("/", messageHandler)
 	return r
