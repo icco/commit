@@ -1,44 +1,60 @@
+// Package main serves a simple HTTP endpoint that returns a random message.
 package main
 
 import (
-	"encoding/json"
-	"log"
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	"github.com/icco/gutil/logging"
+	"github.com/icco/gutil/render"
+	"go.uber.org/zap"
 )
+
+const service = "commit"
 
 type messageResponse struct {
 	Message string `json:"message"`
 }
 
 func messageHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(messageResponse{
-		Message: messages[rand.IntN(len(messages))],
-	}); err != nil {
-		log.Printf("encode response: %v", err)
+	log := logging.FromContext(r.Context())
+	render.JSON(log, w, http.StatusOK, messageResponse{
+		Message: messages[rand.IntN(len(messages))], //nolint:gosec // non-cryptographic random selection
+	})
+}
+
+func newRouter(log *zap.Logger) http.Handler {
+	r := chi.NewRouter()
+	r.Use(logging.Middleware(log))
+	r.Get("/", messageHandler)
+	return r
+}
+
+func listenAddr() string {
+	if addr := os.Getenv("ADDR"); addr != "" {
+		return addr
 	}
+	return ":8080"
 }
 
 func main() {
-	r := chi.NewRouter()
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	log := logging.Must(logging.NewLogger(service))
+	defer logging.Sync(log)
 
-	r.Get("/", messageHandler)
-
-	addr := os.Getenv("ADDR")
-	if addr == "" {
-		addr = ":8080"
+	addr := listenAddr()
+	log.Infow("listening", zap.String("addr", addr))
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           newRouter(log.Desugar()),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
-	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
-		log.Fatal(err)
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatalw("server stopped", zap.Error(err))
 	}
 }
