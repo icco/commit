@@ -26,23 +26,29 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func newRouter(log *zap.Logger) http.Handler {
+	r := chi.NewRouter()
+	r.Use(logging.Middleware(log))
+	r.Get("/", messageHandler)
+	return r
+}
+
+func listenAddr() string {
+	if addr := os.Getenv("ADDR"); addr != "" {
+		return addr
+	}
+	return ":8080"
+}
+
 func main() {
 	log := logging.Must(logging.NewLogger(service))
 	defer logging.Sync(log)
 
-	r := chi.NewRouter()
-	r.Use(logging.Middleware(log.Desugar()))
-
-	r.Get("/", messageHandler)
-
-	addr := os.Getenv("ADDR")
-	if addr == "" {
-		addr = ":8080"
-	}
+	addr := listenAddr()
 	log.Infow("listening", zap.String("addr", addr))
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           r,
+		Handler:           newRouter(log.Desugar()),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
