@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,8 +19,32 @@ import (
 
 const service = "commit"
 
+// defaultName is the addressee used when no ?name= is supplied, keeping the
+// public endpoint's messages reading as they always have.
+const defaultName = "Tristan"
+
 type messageResponse struct {
 	Message string `json:"message"`
+}
+
+// personalize renders a message as a text/template with {{.Name}} bound to
+// name. A blank or absurdly long name falls back to defaultName. A message that
+// fails to parse or execute is returned unchanged, so a malformed template in
+// the pool degrades to its raw text rather than taking down the endpoint.
+func personalize(msg, name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 64 {
+		name = defaultName
+	}
+	tmpl, err := template.New("message").Parse(msg)
+	if err != nil {
+		return msg
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, struct{ Name string }{Name: name}); err != nil {
+		return msg
+	}
+	return buf.String()
 }
 
 func messageHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +56,7 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(log, w, http.StatusOK, messageResponse{
-		Message: messages[idx.Int64()],
+		Message: personalize(messages[idx.Int64()], r.URL.Query().Get("name")),
 	})
 }
 
