@@ -18,8 +18,22 @@ import (
 
 const service = "commit"
 
+// defaultName is the addressee used when no ?name= is supplied, keeping the
+// public endpoint's messages reading as they always have.
+const defaultName = "Tristan"
+
 type messageResponse struct {
 	Message string `json:"message"`
+}
+
+// personalize substitutes the {name} placeholder in a message. A blank or
+// absurdly long name falls back to defaultName.
+func personalize(msg, name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 64 {
+		name = defaultName
+	}
+	return strings.ReplaceAll(msg, "{name}", name)
 }
 
 func messageHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +45,7 @@ func messageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.JSON(log, w, http.StatusOK, messageResponse{
-		Message: messages[idx.Int64()],
+		Message: personalize(messages[idx.Int64()], r.URL.Query().Get("name")),
 	})
 }
 
