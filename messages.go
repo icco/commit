@@ -5,7 +5,7 @@ var messages = []string{
 	"Claude says you need to review this.",
 	"Does this look like a dog to you?",
 	"Stop slopfooting about and check out a real player's PR.",
-	"If you don't approve this i'm texting Steph.",
+	"If you don't approve this i'm texting Ryan.",
 	"There's loyalty that protects secrets and loyalty that projects the truth. You cannot serve both masters, so which loyalty is yours?",
 	`We weep for a bird's cry, but not for a fish's blood. Blessed are those with a voice. If the dolls also had voices, they would have screamed, "I didn't want to become human."`,
 	"No matter how far a jackass travels, it won't come back a horse.",
