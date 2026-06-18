@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -26,14 +27,24 @@ type messageResponse struct {
 	Message string `json:"message"`
 }
 
-// personalize substitutes the {name} placeholder in a message. A blank or
-// absurdly long name falls back to defaultName.
+// personalize renders a message as a text/template with {{.Name}} bound to
+// name. A blank or absurdly long name falls back to defaultName. A message that
+// fails to parse or execute is returned unchanged, so a malformed template in
+// the pool degrades to its raw text rather than taking down the endpoint.
 func personalize(msg, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 64 {
 		name = defaultName
 	}
-	return strings.ReplaceAll(msg, "{name}", name)
+	tmpl, err := template.New("message").Parse(msg)
+	if err != nil {
+		return msg
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, struct{ Name string }{Name: name}); err != nil {
+		return msg
+	}
+	return buf.String()
 }
 
 func messageHandler(w http.ResponseWriter, r *http.Request) {

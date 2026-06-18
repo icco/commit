@@ -47,12 +47,13 @@ func TestPersonalize(t *testing.T) {
 		arg  string
 		want string
 	}{
-		{"substitutes name", "Only you, {name}, can merge.", "Roshan", "Only you, Roshan, can merge."},
-		{"blank falls back to default", "Only you, {name}, can merge.", "", "Only you, Tristan, can merge."},
-		{"whitespace falls back to default", "{name} merges.", "   ", "Tristan merges."},
-		{"trims surrounding whitespace", "{name} merges.", "  Steph  ", "Steph merges."},
-		{"overlong falls back to default", "{name} merges.", strings.Repeat("x", 65), "Tristan merges."},
+		{"substitutes name", "Only you, {{.Name}}, can merge.", "Roshan", "Only you, Roshan, can merge."},
+		{"blank falls back to default", "Only you, {{.Name}}, can merge.", "", "Only you, Tristan, can merge."},
+		{"whitespace falls back to default", "{{.Name}} merges.", "   ", "Tristan merges."},
+		{"trims surrounding whitespace", "{{.Name}} merges.", "  Steph  ", "Steph merges."},
+		{"overlong falls back to default", "{{.Name}} merges.", strings.Repeat("x", 65), "Tristan merges."},
 		{"no placeholder is untouched", "Slap yourself.", "Roshan", "Slap yourself."},
+		{"malformed template degrades to raw text", "Approve this {{.Name", "Roshan", "Approve this {{.Name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
