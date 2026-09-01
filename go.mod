@@ -3,7 +3,7 @@ module github.com/nat/commit
 go 1.26
 
 require (
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.3.2
 	go.uber.org/zap v1.28.0
 )
 
