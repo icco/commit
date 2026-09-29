@@ -1,4 +1,4 @@
-module github.com/nat/commit
+module go.icco.me/commit
 
 go 1.26.0
 

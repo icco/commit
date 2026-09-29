@@ -4,7 +4,7 @@ Guidance for coding agents working on commit.
 
 ## Project Overview
 
-Microservice written in Go (`github.com/nat/commit`) that returns randomized commit messages over HTTP (`GET /` returns JSON `{"message": "..."}`). Supports optional `?name=<name>`.
+Microservice written in Go (`go.icco.me/commit`) that returns randomized commit messages over HTTP (`GET /` returns JSON `{"message": "..."}`). Supports optional `?name=<name>`.
 
 ## Commands
 
