@@ -7,7 +7,7 @@ require (
 	go.uber.org/zap v1.28.0
 )
 
-require go.icco.me/gutil v1.0.27-0.20260929105600-f3e11752b837
+require go.icco.me/gutil v1.0.27
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
