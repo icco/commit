@@ -4,7 +4,7 @@ go 1.27.3
 
 require (
 	github.com/go-chi/chi/v5 v5.5.0
-	go.icco.me/gutil v1.0.36
+	go.icco.me/gutil v1.0.37
 	go.uber.org/zap v1.28.0
 )
 
