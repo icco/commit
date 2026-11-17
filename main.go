@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"math/big"
 	"net"
@@ -14,6 +15,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.icco.me/gutil/logging"
 	"go.icco.me/gutil/render"
+	"go.icco.me/gutil/tracing"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 )
 
@@ -86,7 +89,11 @@ func newRouter(log *zap.Logger) http.Handler {
 	r.Use(realIPFromTrustedProxy)
 	r.Use(logging.Middleware(log))
 	r.Get("/", messageHandler)
-	return r
+	return otelhttp.NewHandler(r, service,
+		otelhttp.WithFilter(func(req *http.Request) bool {
+			return req.URL.Path != "/metrics" && req.URL.Path != "/healthz"
+		}),
+	)
 }
 
 func listenAddr() string {
@@ -99,6 +106,19 @@ func listenAddr() string {
 func main() {
 	log := logging.Must(logging.NewLogger(service))
 	defer logging.Sync(log)
+
+	ctx := context.Background()
+	shutdown, err := tracing.Init(ctx, service)
+	if err != nil {
+		log.Fatalw("tracing init", zap.Error(err))
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdown(shutdownCtx); err != nil {
+			log.Warnw("tracing shutdown", zap.Error(err))
+		}
+	}()
 
 	addr := listenAddr()
 	log.Infow("listening", zap.String("addr", addr))
