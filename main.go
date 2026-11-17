@@ -4,11 +4,14 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"math/big"
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"text/template"
 	"time"
 
@@ -107,20 +110,27 @@ func main() {
 	log := logging.Must(logging.NewLogger(service))
 	defer logging.Sync(log)
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx, log, listenAddr()); err != nil {
+		log.Errorw("server error", zap.Error(err))
+	}
+}
+
+func run(ctx context.Context, log *zap.SugaredLogger, addr string) error {
 	shutdown, err := tracing.Init(ctx, service)
 	if err != nil {
-		log.Fatalw("tracing init", zap.Error(err))
+		return err
 	}
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
 		if err := shutdown(shutdownCtx); err != nil {
 			log.Warnw("tracing shutdown", zap.Error(err))
 		}
 	}()
 
-	addr := listenAddr()
 	log.Infow("listening", zap.String("addr", addr))
 	srv := &http.Server{
 		Addr:              addr,
@@ -130,7 +140,25 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil {
-		log.Fatalw("server stopped", zap.Error(err))
+
+	serveErr := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serveErr <- err
+		}
+		close(serveErr)
+	}()
+
+	select {
+	case <-ctx.Done():
+		log.Infow("shutdown signal received")
+	case err := <-serveErr:
+		if err != nil {
+			return err
+		}
 	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	return srv.Shutdown(shutdownCtx)
 }

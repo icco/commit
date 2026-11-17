@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -143,5 +144,18 @@ func TestRealIPFromTrustedProxy(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if gotAddr != "203.0.113.1" {
 		t.Errorf("got %q, want 203.0.113.1", gotAddr)
+	}
+}
+
+func TestRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- run(ctx, zap.NewNop().Sugar(), "127.0.0.1:0")
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("run error: %v", err)
 	}
 }
