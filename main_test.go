@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -118,5 +119,43 @@ func TestListenAddr(t *testing.T) {
 	t.Setenv("ADDR", ":9999")
 	if got := listenAddr(); got != ":9999" {
 		t.Errorf("override = %q, want :9999", got)
+	}
+}
+
+func TestRealIPFromTrustedProxy(t *testing.T) {
+	var gotAddr string
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotAddr = r.RemoteAddr
+	})
+	handler := realIPFromTrustedProxy(next)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.RemoteAddr = "127.0.0.1:1234"
+	req.Header.Set("X-Forwarded-For", "203.0.113.195, 70.41.3.18")
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if gotAddr != "203.0.113.195" {
+		t.Errorf("got %q, want 203.0.113.195", gotAddr)
+	}
+
+	req = httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+	req.RemoteAddr = "203.0.113.1"
+	req.Header.Set("X-Forwarded-For", "198.51.100.1")
+	handler.ServeHTTP(w, req)
+	if gotAddr != "203.0.113.1" {
+		t.Errorf("got %q, want 203.0.113.1", gotAddr)
+	}
+}
+
+func TestRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- run(ctx, zap.NewNop().Sugar(), "127.0.0.1:0")
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("run error: %v", err)
 	}
 }
