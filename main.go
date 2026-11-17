@@ -107,6 +107,10 @@ func listenAddr() string {
 }
 
 func main() {
+	os.Exit(realMain())
+}
+
+func realMain() int {
 	log := logging.Must(logging.NewLogger(service))
 	defer logging.Sync(log)
 
@@ -115,7 +119,9 @@ func main() {
 
 	if err := run(ctx, log, listenAddr()); err != nil {
 		log.Errorw("server error", zap.Error(err))
+		return 1
 	}
+	return 0
 }
 
 func run(ctx context.Context, log *zap.SugaredLogger, addr string) error {
